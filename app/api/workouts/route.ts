@@ -2,16 +2,15 @@ import { env } from "cloudflare:workers";
 
 type IncomingEntry = { exerciseId?: unknown; weight?: unknown; reps?: unknown };
 
-const allowedSessions = new Set(["upper", "lower", "cardio", "push", "pull", "legs", "rest"]);
+const allowedSessions = new Set(["upper", "lower", "push", "pull"]);
 const allowedExercises = new Set([
   "machine-chest-press", "chest-supported-row", "wide-grip-lat-pulldown", "db-incline-press",
   "overhead-shoulder-press", "tricep-pushdown", "alternating-bicep-curls",
   "barbell-squats", "single-leg-deadlift", "leg-extension", "step-ups", "standing-calf-raise",
-  "lying-leg-raises", "cable-crunches", "cardio-session", "bench-press", "pec-deck-fly",
+  "lying-leg-raises", "cable-crunches", "bench-press", "pec-deck-fly",
   "lateral-raises", "tricep-overhead-extensions", "rope-pushdown", "tricep-kickbacks",
   "seated-cable-row", "machine-row", "rear-delt-fly", "barbell-shrugs", "bicep-curls",
-  "hammer-curls", "goblet-squats", "leg-press", "reverse-lunges", "hamstring-curls",
-  "woodchoppers", "decline-reverse-crunch", "active-recovery",
+  "hammer-curls",
 ]);
 
 function ownerId(request: Request) {
