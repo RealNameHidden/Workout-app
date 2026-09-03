@@ -2,12 +2,16 @@ import { env } from "cloudflare:workers";
 
 type IncomingEntry = { exerciseId?: unknown; weight?: unknown; reps?: unknown };
 
-const allowedSessions = new Set(["push", "pull", "legs", "full"]);
+const allowedSessions = new Set(["upper", "lower", "cardio", "push", "pull", "legs", "rest"]);
 const allowedExercises = new Set([
-  "bench-press", "overhead-press", "incline-db-press", "cable-fly",
-  "deadlift", "lat-pulldown", "barbell-row", "bicep-curl",
-  "back-squat", "romanian-deadlift", "leg-press", "calf-raise",
-  "goblet-squat", "push-up", "one-arm-row", "farmer-carry",
+  "machine-chest-press", "chest-supported-row", "wide-grip-lat-pulldown", "db-incline-press",
+  "overhead-shoulder-press", "tricep-pushdown", "alternating-bicep-curls",
+  "barbell-squats", "single-leg-deadlift", "leg-extension", "step-ups", "standing-calf-raise",
+  "lying-leg-raises", "cable-crunches", "cardio-session", "bench-press", "pec-deck-fly",
+  "lateral-raises", "tricep-overhead-extensions", "rope-pushdown", "tricep-kickbacks",
+  "seated-cable-row", "machine-row", "rear-delt-fly", "barbell-shrugs", "bicep-curls",
+  "hammer-curls", "goblet-squats", "leg-press", "reverse-lunges", "hamstring-curls",
+  "woodchoppers", "decline-reverse-crunch", "active-recovery",
 ]);
 
 function ownerId(request: Request) {
