@@ -71,6 +71,7 @@ export default function Home() {
   const [status, setStatus] = useState<"idle"|"loading"|"saving"|"saved"|"error">("loading");
   const [account, setAccount] = useState<WorkoutAccount | null>(null);
   const [accountBusy, setAccountBusy] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [progressExercise, setProgressExercise] = useState("machine-chest-press");
   const dateInput = useRef<HTMLInputElement>(null);
   const selectedPlan = workoutPlans.find((plan) => plan.id === sessionId) ?? workoutPlans[0];
@@ -123,11 +124,22 @@ export default function Home() {
   function markDraftTouched(id: string) { setDraft((current) => current[id]?.touched ? current : ({...current,[id]:{...current[id],touched:true,carried:false}})); }
   async function handleAccount() {
     if (accountBusy) return;
-    if (!account?.isAnonymous && !window.confirm(`Sign out of ${account?.email ?? "your Google account"}?`)) return;
+    if (account && !account.isAnonymous) {
+      setAccountMenuOpen((open) => !open);
+      return;
+    }
     setAccountBusy(true);
     try {
-      if (account?.isAnonymous ?? true) await signInWithGoogle();
-      else await signOutWorkoutAccount();
+      await signInWithGoogle();
+    } catch { setStatus("error"); }
+    finally { setAccountBusy(false); }
+  }
+  async function handleSignOut() {
+    if (accountBusy) return;
+    setAccountBusy(true);
+    try {
+      await signOutWorkoutAccount();
+      setAccountMenuOpen(false);
     } catch { setStatus("error"); }
     finally { setAccountBusy(false); }
   }
@@ -147,7 +159,10 @@ export default function Home() {
     <header className="topbar">
       <button className="brand" onClick={() => setView("log")}><span>Rep Quest</span></button>
       <nav aria-label="Main navigation"><button className={`nav-link ${view === "log" ? "active" : ""}`} onClick={() => setView("log")}>Log workout</button><button className={`nav-link ${view === "progress" ? "active" : ""}`} onClick={() => setView("progress")}>Progress</button></nav>
-      <button className={`account-button ${signedIn ? "signed-in" : ""}`} onClick={handleAccount} disabled={accountBusy} aria-label={signedIn ? `Signed in as ${accountName}. Click to sign out.` : "Sign in with Google"}><span className="account-mark">{accountBusy ? "…" : signedIn ? accountName.slice(0,2).toUpperCase() : "G"}</span><span>{signedIn ? accountName : "Sign in with Google"}</span></button>
+      <div className="account-area">
+        <button className={`account-button ${signedIn ? "signed-in" : ""}`} onClick={handleAccount} disabled={accountBusy} aria-expanded={signedIn ? accountMenuOpen : undefined} aria-haspopup={signedIn ? "menu" : undefined} aria-label={signedIn ? `Account menu for ${accountName}` : "Sign in with Google"}><span className="account-mark">{accountBusy ? "…" : signedIn ? accountName.slice(0,2).toUpperCase() : "G"}</span><span>{signedIn ? accountName : "Sign in with Google"}</span></button>
+        {signedIn && accountMenuOpen && <div className="account-menu" role="menu"><small>SIGNED IN AS</small><strong>{accountName}</strong>{account?.email && account.email !== accountName && <span>{account.email}</span>}<button role="menuitem" onClick={handleSignOut} disabled={accountBusy}>{accountBusy ? "Signing out…" : "Sign out"}</button></div>}
+      </div>
     </header>
 
     {view === "log" ? <section className="content">
