@@ -12,7 +12,7 @@ Rep Quest is a playful, mobile-first workout log for tracking your best set and 
 - Review exercise-by-exercise progress and personal bests.
 - Use the compact interface on phones and foldable cover screens.
 
-Workout data is stored through the app's Cloudflare D1 binding. Dates with no saved workout are treated as rest days automatically.
+Workout data is stored in Cloud Firestore and separated by an anonymous Firebase user ID. Dates with no saved workout are treated as rest days automatically.
 
 ## Run locally
 
@@ -38,18 +38,17 @@ npm run lint    # Check the source code
 
 - React 19
 - TypeScript
-- vinext and Vite
-- Cloudflare Workers and D1
-- OpenAI Sites hosting configuration
+- Vite
+- Firebase Hosting, Google/anonymous Authentication, and Cloud Firestore
 
 ## Project structure
 
 - `app/page.tsx` — workout logger and progress dashboard
 - `app/globals.css` — responsive visual design
-- `app/api/workouts/route.ts` — workout history API and D1 persistence
+- `src/firebase.ts` — Firebase Authentication and Firestore persistence
 - `public/icons/` — custom workout icons
-- `.openai/hosting.json` — Sites hosting and database binding
+- `firebase.json` — Firebase Hosting and Firestore configuration
 
 ## Privacy
 
-When hosted through Sites, workout records are separated using the authenticated visitor ID supplied to the app. Local development uses a local fallback owner ID.
+Workout records are private to the current Firebase identity. Signing in with Google links any existing anonymous workout history to that account so it can be accessed on other devices. If Google sign-in is skipped, clearing browser data creates a new anonymous identity and its earlier records will no longer be visible.

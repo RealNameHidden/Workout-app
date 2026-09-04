@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { saveWorkoutSession, signInWithGoogle, signOutWorkoutAccount, subscribeWorkoutAccount, subscribeWorkoutLogs, type WorkoutAccount } from "../src/firebase";
 
 type Exercise = { id: string; name: string; targets: [string,string,string,string]; icon: string; color: string; metric?: "duration" };
 type Session = { id: string; name: string; subtitle: string; icon: string; color: string; warmup?: string; exercises: Exercise[] };
-type LogEntry = { id?: number; date: string; session: string; exerciseId: string; weight: number | null; reps: number | null };
+type LogEntry = { id?: string; date: string; session: string; exerciseId: string; weight: number | null; reps: number | null };
 type Draft = Record<string, { weight: string; reps: string; touched: boolean; carried: boolean }>;
 
 const plans: Session[] = [
@@ -68,17 +69,26 @@ export default function Home() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [draft, setDraft] = useState<Draft>(() => blankDraft(workoutPlans[0]));
   const [status, setStatus] = useState<"idle"|"loading"|"saving"|"saved"|"error">("loading");
+  const [account, setAccount] = useState<WorkoutAccount | null>(null);
+  const [accountBusy, setAccountBusy] = useState(false);
   const [progressExercise, setProgressExercise] = useState("machine-chest-press");
   const dateInput = useRef<HTMLInputElement>(null);
   const selectedPlan = workoutPlans.find((plan) => plan.id === sessionId) ?? workoutPlans[0];
   const programWeek = trainingWeek(selectedDate);
 
   useEffect(() => {
-    fetch("/api/workouts").then(async (response) => {
-      if (!response.ok) throw new Error("Could not load workouts");
-      return response.json() as Promise<{ logs: LogEntry[] }>;
-    }).then((data) => { setLogs(data.logs); setStatus("idle"); }).catch(() => setStatus("error"));
+    let disposed = false;
+    let stopListening: (() => void) | undefined;
+    subscribeWorkoutLogs(
+      (nextLogs) => { if (!disposed) { setLogs(nextLogs); setStatus("idle"); } },
+      () => { if (!disposed) setStatus("error"); },
+    ).then((unsubscribe) => {
+      if (disposed) unsubscribe(); else stopListening = unsubscribe;
+    }).catch(() => { if (!disposed) setStatus("error"); });
+    return () => { disposed = true; stopListening?.(); };
   }, []);
+
+  useEffect(() => subscribeWorkoutAccount(setAccount), []);
 
   useEffect(() => {
     const existing = logs.filter((entry) => entry.date === selectedDate && entry.session === sessionId);
@@ -90,6 +100,8 @@ export default function Home() {
       if (previous?.weight != null) next[exercise.id] = { weight:previous.weight.toString(), reps:"", touched:false, carried:true };
     });
     existing.forEach((entry) => { if (next[entry.exerciseId]) next[entry.exerciseId] = { weight: entry.weight?.toString() ?? "", reps: entry.reps?.toString() ?? "", touched:true, carried:false }; });
+    // Reset the editable form whenever its selected date, workout, or saved history changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setDraft(next);
   }, [selectedDate, sessionId, logs, selectedPlan]);
 
@@ -109,22 +121,33 @@ export default function Home() {
   function selectSession(id: string) { setSessionId(id); setStatus("idle"); }
   function updateDraft(id: string, field: "weight"|"reps", value: string) { if (/^\d{0,4}(\.\d{0,2})?$/.test(value)) setDraft((current) => ({...current,[id]:{...current[id],[field]:value,touched:true,carried:false}})); }
   function markDraftTouched(id: string) { setDraft((current) => current[id]?.touched ? current : ({...current,[id]:{...current[id],touched:true,carried:false}})); }
+  async function handleAccount() {
+    if (accountBusy) return;
+    if (!account?.isAnonymous && !window.confirm(`Sign out of ${account?.email ?? "your Google account"}?`)) return;
+    setAccountBusy(true);
+    try {
+      if (account?.isAnonymous ?? true) await signInWithGoogle();
+      else await signOutWorkoutAccount();
+    } catch { setStatus("error"); }
+    finally { setAccountBusy(false); }
+  }
   async function saveWorkout() {
     setStatus("saving");
     const entries = selectedPlan.exercises.map((exercise) => ({ exerciseId:exercise.id, weight:draft[exercise.id]?.touched && draft[exercise.id]?.weight ? Number(draft[exercise.id].weight) : null, reps:draft[exercise.id]?.touched && draft[exercise.id]?.reps ? Number(draft[exercise.id].reps) : null }));
     try {
-      const response = await fetch("/api/workouts", { method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify({date:selectedDate,session:sessionId,entries}) });
-      const data = await response.json() as { logs?: LogEntry[] };
-      if (!response.ok || !data.logs) throw new Error("Save failed");
-      setLogs(data.logs); setStatus("saved"); window.setTimeout(() => setStatus("idle"), 2200);
+      await saveWorkoutSession(selectedDate, sessionId, entries);
+      setStatus("saved"); window.setTimeout(() => setStatus("idle"), 2200);
     } catch { setStatus("error"); }
   }
+
+  const signedIn = !!account && !account.isAnonymous;
+  const accountName = account?.displayName ?? account?.email ?? "Google user";
 
   return <main className="app-shell">
     <header className="topbar">
       <button className="brand" onClick={() => setView("log")}><span>Rep Quest</span></button>
       <nav aria-label="Main navigation"><button className={`nav-link ${view === "log" ? "active" : ""}`} onClick={() => setView("log")}>Log workout</button><button className={`nav-link ${view === "progress" ? "active" : ""}`} onClick={() => setView("progress")}>Progress</button></nav>
-      <button className="avatar" aria-label="Profile">DA</button>
+      <button className={`account-button ${signedIn ? "signed-in" : ""}`} onClick={handleAccount} disabled={accountBusy} aria-label={signedIn ? `Signed in as ${accountName}. Click to sign out.` : "Sign in with Google"}><span className="account-mark">{accountBusy ? "…" : signedIn ? accountName.slice(0,2).toUpperCase() : "G"}</span><span>{signedIn ? accountName : "Sign in with Google"}</span></button>
     </header>
 
     {view === "log" ? <section className="content">
